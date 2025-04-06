@@ -9,7 +9,7 @@ pub fn log_info(message: &str) {
     // Print to console
     println!("{}", &formatted);
 
-    // Append to log file
+   
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
