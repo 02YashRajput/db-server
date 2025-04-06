@@ -1,4 +1,6 @@
-
+// =======================================================
+// 🧠 INFO: Main Imports and Module Declarations
+// =======================================================
 mod parser;
 mod db;
 mod logger;
@@ -13,15 +15,26 @@ use crate::db::DbMap;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Parse port from args or default to 4000
     let args: Vec<String> = env::args().collect();
     let port = args.get(1).map(|s| s.to_string()).unwrap_or("4000".to_string());
     let address = format!("127.0.0.1:{}", port);
 
+    // Shared state for all databases
     let all_dbs: DbMap = Arc::new(Mutex::new(HashMap::new()));
+
+    // Start cleaner thread
     cleaner::start_cleaner(all_dbs.clone()).await;
+
+    // Create TCP listener
     let listener = TcpListener::bind(&address).await?;
     println!("Server running on {}", address);
 
+
+
+    // =======================================================
+    // 🧠 INFO: Main Connection Handling Loop
+    // =======================================================
     loop {
         let (mut socket, _) = match listener.accept().await {
             Ok(result) => result,
@@ -31,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
             }
         };
         let all_dbs = all_dbs.clone();
-
+        // Spawn new task for each connection
         tokio::spawn(async move {
             let (reader, mut writer) = socket.split();
             let mut reader = BufReader::new(reader);
@@ -59,7 +72,9 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 match parts[0] {
+                    // Create a new database
                     "create" if parts.len() == 2 => {
+                        // Check if a database is already selected
                         if current_db.is_some() {
                             if let Err(e) = writer.write_all(b"Cannot create a database. A database is already selected.\n").await {
                                 eprintln!("Error writing to socket: {}", e);
@@ -67,20 +82,19 @@ async fn main() -> anyhow::Result<()> {
                             }
                         } else {
                             let db_name = parts[1].to_string();
-                            
+                            // Ask for authentication preference
                             if let Err(e) = writer.write_all(b"Do you want authentication (yes/no)?\n").await {
                                 eprintln!("Error writing to socket: {}", e);
                                 break;
                             }
-                            
+                            // Read authentication preference
                             let mut auth_line = String::new();
                             if let Err(e) = reader.read_line(&mut auth_line).await {
                                 eprintln!("Error reading auth option: {}", e);
                                 break;
                             }
-                            
                             let auth_option = auth_line.trim().to_lowercase() == "yes";
-                            
+                            // If authentication is required, ask for username and password
                             let db_instance = if auth_option {
                                 if let Err(e) = writer.write_all(b"Enter username:\n").await {
                                     eprintln!("Error writing to socket: {}", e);
@@ -111,18 +125,22 @@ async fn main() -> anyhow::Result<()> {
                                 db::DbInstance::new(false, None, None)
                             };
 
+                            // Insert new database into shared state
                             {
                                 let mut dbs = all_dbs.lock().unwrap();
                                 dbs.insert(db_name, db_instance);
                             }
-                            
+
+                            // Confirm database creation
                             if let Err(e) = writer.write_all(b"Database created successfully\n").await {
                                 eprintln!("Error writing to socket: {}", e);
                                 break;
                             }
                         }
                     }
+                    // Use a database
                     "use" if parts.len() == 2 => {
+                        // Check if a database is already selected
                         if current_db.is_some() {
                             if let Err(e) = writer.write_all(b"Cannot use a different database. A database is already selected.\n").await {
                                 eprintln!("Error writing to socket: {}", e);
@@ -138,9 +156,10 @@ async fn main() -> anyhow::Result<()> {
                             match db_instance {
                                 Some(db_instance) => {
                                     if db_instance.require_auth {
+                                        // Ask for authentication
                                         let mut authenticated = false;
                                         let mut auth_attempts = 0;
-                                        const MAX_AUTH_ATTEMPTS: u8 = 3;
+                                        const MAX_AUTH_ATTEMPTS: u8 = 3;// 3 attempts max
                                         
                                         while !authenticated && auth_attempts < MAX_AUTH_ATTEMPTS {
                                             auth_attempts += 1;
@@ -171,6 +190,7 @@ async fn main() -> anyhow::Result<()> {
                                             
                                             if db_instance.username.as_deref() == Some(username) && 
                                                db_instance.password.as_deref() == Some(password) {
+                                                // If authentication successful, select database
                                                 authenticated = true;
                                                 current_db = Some(db_instance.data.clone());
                                                 if let Err(e) = writer.write_all(format!("Authentication successful Using database '{}'\n", db_name).as_bytes()).await {
@@ -178,13 +198,14 @@ async fn main() -> anyhow::Result<()> {
                                                     break;
                                                 }
                                             } else {
+                                                // If authentication failed, try again
                                                 if let Err(e) = writer.write_all(b"Authentication failed. Try again.\n").await {
                                                     eprintln!("Error writing to socket: {}", e);
                                                     break;
                                                 }
                                             }
                                         }
-                                        
+                                        // If authentication failed after max attempts, disconnect
                                         if !authenticated && auth_attempts >= MAX_AUTH_ATTEMPTS {
                                             if let Err(e) = writer.write_all(b"Too many failed authentication attempts. Disconnecting.\n").await {
                                                 eprintln!("Error writing to socket: {}", e);
@@ -192,6 +213,7 @@ async fn main() -> anyhow::Result<()> {
                                             break;
                                         }
                                     } else {
+                                        // If authentication is not required, select database
                                         current_db = Some(db_instance.data.clone());
                                         if let Err(e) = writer.write_all(format!("Using database '{}'\n", db_name).as_bytes()).await {
                                             eprintln!("Error writing to socket: {}", e);
@@ -208,9 +230,11 @@ async fn main() -> anyhow::Result<()> {
                             }
                         }
                     }
+                    // All other commands
                     _ => {
                         match &current_db {
                             Some(_db) => {
+                                // Parse command and execute
                                 let response = parser::parse_statement(line.trim(), &current_db);
                                 if let Err(e) = writer.write_all(format!("{}\n", response).as_bytes()).await {
                                     eprintln!("Error writing to socket: {}", e);
