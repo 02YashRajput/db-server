@@ -6,8 +6,8 @@ pub fn log_info(message: &str) {
     let now = Local::now();
     let formatted = format!("[INFO {}] {}", now.format("%Y-%m-%d %H:%M:%S"), message);
 
-    // Print to console
-    println!("{}", &formatted);
+
+  
 
    
     let mut file = OpenOptions::new()

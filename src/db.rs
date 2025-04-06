@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use crate::logger::log_info;
 
 pub type Db = Arc<Mutex<HashMap<String, ValueWithExpiry>>>;
-
+pub type DbMap = Arc<Mutex<HashMap<String, DbInstance>>>;
 
 #[derive(Debug, Clone)]
 pub struct DbInstance {
