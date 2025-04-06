@@ -7,10 +7,31 @@ use crate::logger::log_info;
 
 pub type Db = Arc<Mutex<HashMap<String, ValueWithExpiry>>>;
 
+
+#[derive(Debug, Clone)]
+pub struct DbInstance {
+    pub data: Db,
+    pub require_auth: bool,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+impl DbInstance {
+  pub fn new(require_auth: bool, username: Option<String>, password: Option<String>) -> Self {
+      Self {
+          data: Arc::new(Mutex::new(HashMap::new())),
+          require_auth,
+          username,
+          password,
+      }
+  }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct ValueWithExpiry {
     pub value: String,
-    pub expires_at: Option<Instant>, // None = no expiry
+    pub expires_at: Option<Instant>, 
 }
 
 impl ValueWithExpiry {
