@@ -52,7 +52,7 @@ Use with the [companion client](https://github.com/02YashRajput/db-cli) or any T
 
 + `use <dbname>` - Select a database (authenticate if required)
 
-
++ `drop <dbname>` - Delete a database (authenticate if required)
 #### Key-Value Operations:
 + `SET("key","value",["ttl"])` - Store a value (optional TTL: "5s", "10m", "1d")
 
