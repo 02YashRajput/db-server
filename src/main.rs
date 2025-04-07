@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
-
+use crate::logger::log_info;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse port from args or default to 4000
@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
         .get(1)
         .map(|s| s.to_string())
         .unwrap_or("4000".to_string());
-    let address = format!("127.0.0.1:{}", port);
+    let address = format!("0.0.0.0:{}", port);
 
     // Shared state for all databases
     let all_dbs: DbMap = Arc::new(Mutex::new(HashMap::new()));
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create TCP listener
     let listener = TcpListener::bind(&address).await?;
-    println!("Server running on {}", address);
+    log_info(&format!("Server running on {}", address));
 
     // =======================================================
     // 🧠 INFO: Main Connection Handling Loop
@@ -357,9 +357,7 @@ async fn main() -> anyhow::Result<()> {
                             Some(db_instance) => {
                                 // Clone auth details before any awaits
                                 let require_auth = db_instance.require_auth;
-                                let username = db_instance.username.clone();
-                                let password = db_instance.password.clone();
-
+                                
                                 // Handle authentication if required
                                 if require_auth {
                                     let mut authenticated = false;

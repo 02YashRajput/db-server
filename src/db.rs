@@ -103,14 +103,11 @@ impl DbInstance {
     /// Saves the database to file
     pub fn save_to_file(&self) -> std::io::Result<()> {
         let path = format!("dbs/{}.json", self.name);
-        println!("[DEBUG] Saving to path: {}", path);
         
         let data = self.data.lock().unwrap();
-        println!("[DEBUG] Current data before save: {:?}", *data);
         
         let mut serialized_data = HashMap::new();
         for (key, val) in data.iter() {
-            println!("[DEBUG] Processing key: {}, value: {:?}", key, val);
             let expires_at = val.expires_at.map(|instant| {
                 instant.checked_duration_since(Instant::now())
                     .map(|dur| dur.as_secs())
@@ -126,7 +123,6 @@ impl DbInstance {
             );
         }
         
-        println!("[DEBUG] Serialized data: {:?}", serialized_data);
         
         let serialized = SerializableDb {
             data: serialized_data,
@@ -135,29 +131,23 @@ impl DbInstance {
             password: self.password.clone(),
         };
         
-        println!("[DEBUG] Full serialized struct: {:?}", serialized);
         
         let json = match serde_json::to_string_pretty(&serialized) {
             Ok(j) => j,
             Err(e) => {
-                println!("[ERROR] Serialization failed: {}", e);
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, e));
             }
         };
         
-        println!("[DEBUG] JSON to write: {}", json);
         
         match File::create(&path) {
             Ok(mut file) => {
                 if let Err(e) = file.write_all(json.as_bytes()) {
-                    println!("[ERROR] Failed to write file: {}", e);
                     return Err(e);
                 }
-                println!("[DEBUG] File written successfully");
                 Ok(())
             }
             Err(e) => {
-                println!("[ERROR] Failed to create file: {}", e);
                 Err(e)
             }
         }
