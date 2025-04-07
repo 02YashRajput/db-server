@@ -1,9 +1,8 @@
 // =======================================================
 // 🧠 INFO: Imports
 // =======================================================
-use crate::db::ValueWithExpiry;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use crate::db::{DbInstance, ValueWithExpiry};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Parses duration string (e.g. "5s", "10m", "1d") into Duration
@@ -36,7 +35,7 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
 /// - SET("key","value",["ttl"]) - Stores key-value pair with optional TTL
 /// - GET("key") - Retrieves value for key
 /// - DEL("key") - Deletes key
-pub fn parse_statement(input: &str, current_db: &Option<Arc<Mutex<HashMap<String, ValueWithExpiry>>>>) -> String {
+pub fn parse_statement(input: &str,  current_db_instance: &Option<Arc<DbInstance>> ) -> String {
     let input = input.trim();
 
     // Handle SET command
@@ -65,11 +64,16 @@ pub fn parse_statement(input: &str, current_db: &Option<Arc<Mutex<HashMap<String
 
         let entry = ValueWithExpiry::new(value, ttl);
 
-        match current_db {
+        match current_db_instance {
             Some(db_instance) => {
-                let mut db = db_instance.lock().unwrap();
-                db.insert(key, entry);
-                "OK".to_string()  // Success response
+                {
+                    let mut db = db_instance.data.lock().unwrap();
+                    db.insert(key, entry);
+                }
+                
+                // Persist after releasing the lock
+                db_instance.persist();
+                "OK".to_string()
             }
             None => "No database selected".to_string(),
         }
@@ -79,13 +83,15 @@ pub fn parse_statement(input: &str, current_db: &Option<Arc<Mutex<HashMap<String
         let content = &input[4..input.len() - 1];
         let key = content.trim().trim_matches('"');
 
-        match current_db {
+        match current_db_instance {
             Some(db_instance) => {
-                let mut db = db_instance.lock().unwrap();
+                let mut db = db_instance.data.lock().unwrap();
                 match db.get(key) {
-                    Some(val) if !val.is_expired() => val.value.clone(),  // Return value if not expired
+                    Some(val) if !val.is_expired() => val.value.clone(),
                     Some(_) => {
-                        db.remove(key);  // Clean up expired key
+                        db.remove(key);
+                        drop(db); 
+                        db_instance.persist();
                         format!("Error: Key \"{}\" has expired and is deleted", key)
                     }
                     None => format!("Error: Key \"{}\" not found", key),
@@ -99,11 +105,17 @@ pub fn parse_statement(input: &str, current_db: &Option<Arc<Mutex<HashMap<String
         let content = &input[4..input.len() - 1];
         let key = content.trim().trim_matches('"');
 
-        match current_db {
+        match current_db_instance {
             Some(db_instance) => {
-                let mut db = db_instance.lock().unwrap();
-                if db.remove(key).is_some() {
-                    "OK".to_string()  // Success response
+                let removed = {
+                    let mut db = db_instance.data.lock().unwrap();
+                    db.remove(key).is_some()
+                };
+                
+                // Persist only if key was actually removed
+                if removed {
+                    db_instance.persist();
+                    "OK".to_string()
                 } else {
                     format!("Error: Key \"{}\" not found", key)
                 }

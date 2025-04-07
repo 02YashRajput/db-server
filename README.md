@@ -10,6 +10,7 @@ A simple in-memory key-value database server with authentication support and TTL
 - **Multi-database support**: Create and switch between multiple databases
 - **Cleaner thread**: Automatic removal of expired keys
 - **TCP interface**: Network-accessible server
+- **File-Storage**: File storage for persistent memory 
 
 ## Prerequisites
 
@@ -93,6 +94,8 @@ Use with the [companion client](https://github.com/02YashRajput/db-cli) or any T
     + Background thread for removing expired keys
 
     + Periodic database maintenance
+     
+    + Periodic file maintienance 
 
 5. Logger (logger.rs):
 
@@ -115,10 +118,6 @@ The server supports:
 + Tokio for async I/O operations
 
 ## Limitations
-+ In-memory storage (not persistent)
-
-+ Basic authentication (not production-grade security)
-
 + Simple TCP protocol (no encryption)
 
 ## Related Projects

@@ -40,6 +40,8 @@ pub async fn start_cleaner(db_map: DbMap) {
                             expired_keys.join(", ")
                         ));
                     }
+                    drop(data_lock);
+                    db_instance.persist();
                 }
             }
 
