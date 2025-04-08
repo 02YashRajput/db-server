@@ -20,8 +20,12 @@ FROM debian:bookworm-slim
 # Copy binary
 COPY --from=builder /app/target/release/db-server /usr/local/bin/db-server
 
-# Expose the port (optional, useful for documentation or some platforms)
-EXPOSE 4000
+
 
 # Run the TCP server on port 4000
-CMD ["db-server", "4000"]
+EXPOSE 4000
+
+
+
+ENTRYPOINT ["db-server"]
+CMD ["4000"]
